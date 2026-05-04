@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import useServerStore from "../../stores/useServerStore";
 import type { ServerMember } from "../../stores/useServerStore";
-import { useUserProfileContext } from "../../context/UserContext";
+import { useUserProfileContext, useFriendsContext } from "../../context/UserContext";
 import styles from "./css/ServerMembersSidebar.module.css";
+import MemberDetailsModal from "./MemberDetailsModal";
 
 // ─── MemberCard ───────────────────────────────────────────────────────────────
 
@@ -12,11 +14,12 @@ interface CardProps {
     canKick: boolean;
     kicking: boolean;
     onKick: () => void;
+    onClick: () => void;
 }
 
-function MemberCard({ member: m, isYou, canKick, kicking, onKick }: CardProps) {
+function MemberCard({ member: m, isYou, canKick, kicking, onKick, onClick }: CardProps) {
     return (
-        <div className={styles.item}>
+        <div className={styles.item} onClick={onClick} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onClick()}>
             {/* Avatar */}
             <div className={styles.avatarWrap}>
                 {m.image ? (
@@ -36,7 +39,7 @@ function MemberCard({ member: m, isYou, canKick, kicking, onKick }: CardProps) {
             <div className={styles.info}>
                 <span className={`${styles.username} ${isYou ? styles.isYou : ""}`}>
                     {m.username}
-                    {isYou ? " (vos)" : ""}
+                    {isYou ? " (Tú)" : ""}
                 </span>
             </div>
 
@@ -59,13 +62,16 @@ function MemberCard({ member: m, isYou, canKick, kicking, onKick }: CardProps) {
 // ─── ServerMembersSidebar ─────────────────────────────────────────────────────
 
 export default function ServerMembersSidebar() {
+    const navigate = useNavigate();
     const { user } = useUserProfileContext();
+    const { activeFriends } = useFriendsContext();
     const activeServer = useServerStore((s) => s.activeServer);
     const members      = useServerStore((s) => s.members);
     const fetchMembers = useServerStore((s) => s.fetchMembers);
     const kickMember   = useServerStore((s) => s.kickMember);
 
     const [kicking, setKicking] = useState<number | null>(null);
+    const [selectedMember, setSelectedMember] = useState<ServerMember | null>(null);
 
     useEffect(() => {
         if (activeServer) {
@@ -76,14 +82,15 @@ export default function ServerMembersSidebar() {
     if (!activeServer) return null;
 
     const serverMembers: ServerMember[] = members[activeServer.id] ?? [];
+    console.log("Miembros del servidor:",serverMembers);
 
     const isAdmin =
         activeServer.member_role === "owner" ||
         activeServer.member_role === "admin";
 
-    const owners  = serverMembers.filter((m) => m.role === "owner");
-    const admins  = serverMembers.filter((m) => m.role === "admin");
-    const regular = serverMembers.filter((m) => m.role === "member");
+    const owners  = serverMembers.filter((m) => m.role === "Owner");
+    const admins  = serverMembers.filter((m) => m.role === "Admin");
+    const regular = serverMembers.filter((m) => m.role === "Member");
 
     const handleKick = async (userId: number) => {
         setKicking(userId);
@@ -96,6 +103,11 @@ export default function ServerMembersSidebar() {
         }
     };
 
+    const handleOpenProfile = (username: string) => {
+        setSelectedMember(null);
+        navigate(`/profile/${username}`);
+    };
+
     const renderGroup = (label: string, group: ServerMember[]) => {
         if (group.length === 0) return null;
         return (
@@ -106,9 +118,10 @@ export default function ServerMembersSidebar() {
                         key={m.user_id}
                         member={m}
                         isYou={m.user_id === user?.id}
-                        canKick={isAdmin && m.role !== "owner" && m.user_id !== user?.id}
+                        canKick={isAdmin && m.role !== "Owner" && m.user_id !== user?.id}
                         kicking={kicking === m.user_id}
                         onKick={() => handleKick(m.user_id)}
+                        onClick={() => setSelectedMember(m)}
                     />
                 ))}
             </div>
@@ -133,6 +146,16 @@ export default function ServerMembersSidebar() {
                     <p className={styles.empty}>Sin miembros aún.</p>
                 )}
             </div>
+
+            {selectedMember && (
+                <MemberDetailsModal
+                    member={selectedMember}
+                    onClose={() => setSelectedMember(null)}
+                    onOpenProfile={handleOpenProfile}
+                    currentUserId={user?.id}
+                    activeFriends={activeFriends}
+                />
+            )}
         </aside>
     );
 }

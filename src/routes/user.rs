@@ -1,7 +1,7 @@
 use crate::controller::user_controller::*;
 use crate::middlewares::auth::auth;
 use axum::routing::{delete, get, patch, post};
-use axum::Router;
+use axum::{Extension, Router};
 use sqlx::PgPool;
 use tower_http::services::ServeDir;
 
